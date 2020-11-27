@@ -80,9 +80,9 @@ INPUT_UNT.send_keys('0000')
 
 for airdrome in airdromes:
   sleep(1*60)
-
-  INPUT_AERODROME.clear()
   print(airdrome,end='')
+  
+  INPUT_AERODROME.clear()
   INPUT_AERODROME.send_keys(airdrome)
   SEARCH_BUTTON.click()
 
