@@ -1,2 +1,4 @@
 selenium
 beautifullsoup4
+python-dotenv
+pandas
