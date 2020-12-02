@@ -1,6 +1,12 @@
 import os
 from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
 from time import sleep
+from random import randint
+
 from bs4 import BeautifulSoup
 from datetime import datetime
 import pandas as pd
@@ -30,9 +36,14 @@ def writeRow(rowDict,removeExtra=False):
 
 init(True)
 
-airdromes=set(pd.read_csv(os.getenv('GSHEET_LINK'))['Airdrome'].tolist())
 
+print("[-] Loading list of airport Codes from Google Sheet")
+airdromes=pd.read_csv(os.getenv('GSHEET_LINK'))['Airdrome'].dropna().tolist()
+
+
+print("[-] Opening up the browser")
 browser=webdriver.Firefox(executable_path = os.getenv('DRIVER_PATH'))
+print("[-] Navigating to the website")
 browser.get(os.getenv('STARTING_URL'))
 
 # Login process starts here
@@ -40,31 +51,65 @@ username = browser.find_element_by_name("username")
 username.clear()
 username.send_keys(os.getenv('USER'))
 
-print("Please enter the passcode and click on Login")
-print("Waiting for you to click on Login.")
+print("[?] Please enter the passcode and click on Login")
 while True:
-    sleep(1*60)
-    if browser.current_url == os.getenv('STARTING_URL'):
-        continue
-    else:
-        break
-print("Successfully logged-in")
+  if browser.current_url == os.getenv('STARTING_URL'):
+    print("[*] Waiting for user to Login.")
+    sleep(1*30)
+    continue
+  else:break
+  
+print("[-] Successfully logged-in")
 # Naivigate to dashbaard
+
+print("[-] Navigating to Dashboard")
 browser.get(os.getenv('DASHBOARD_LINK'))
+
+# Wait for pageload
+WebDriverWait(browser, 10)\
+  .until(EC.presence_of_element_located(\
+    (By.ID, "TAC")))
+
+
+print("[-] Moving to Tacticals Tab")
+
 # Click on Tacticals
 browser.find_element_by_id('TAC').click()
+
+
+# Wait for Tacticals Tab to show up
+WebDriverWait(browser, 10)\
+  .until(EC.presence_of_element_located(\
+    (By.ID, os.getenv('ID_FLIGHT_LIST'))))
+
+print("[-] Showing a new windows for Flight List")
 # Open Flight lists new window
 browser.find_element_by_id(os.getenv('ID_FLIGHT_LIST')).click()
+
+# Wait implicitly for 8 seconds for browser to load the window completely
+sleep(8)
+
+print("[-] Switched to Flight List Popup Window")
+
 # Switch to Flight List.
 for window in browser.window_handles:
     browser.switch_to.window(window)
     if browser.title=='Flight List':
         break
+
+# Wait for Flight List page to fully loadup so we could click on Aerodrome Tab.
+WebDriverWait(browser, 10)\
+  .until(EC.presence_of_element_located(\
+    (By.XPATH, os.getenv('XPATH_AERODROME'))))
+
 # Switch to Aerodrome Tab.
 AERODROME=browser.find_element_by_xpath(os.getenv('XPATH_AERODROME'))
 if AERODROME.text=='Aerodrome': AERODROME.click()
 else:   print("Something wrong happened with XPATH")
 
+WebDriverWait(browser, 10)\
+  .until(EC.presence_of_element_located(\
+    (By.ID, os.getenv('ID_INPUT_AERODROME'))))
 
 INPUT_AERODROME = browser.find_element_by_id(os.getenv('ID_INPUT_AERODROME'))
 INPUT_WEF       = browser.find_element_by_id(os.getenv('ID_INPUT_WEF'))
@@ -79,25 +124,31 @@ INPUT_WEF.send_keys('0000')
 INPUT_UNT.send_keys('0000')
 
 for airdrome in airdromes:
-  sleep(1*60)
   print(airdrome,end='')
   
   INPUT_AERODROME.clear()
   INPUT_AERODROME.send_keys(airdrome)
   SEARCH_BUTTON.click()
 
+
+  WebDriverWait(browser, 10)\
+  .until(EC.presence_of_element_located(\
+    (By.ID, os.getenv('ID_TABLE_HEADER'))))
+  
   pageParser=BeautifulSoup(browser.page_source,'html.parser')
   # TODO Add id for total flights here
-  print(' ',pageParser.find('').getText())
-
-  #  TODO Add id here
-  for record in pageParser.find('table',id='').findAll('tr', {'id': not None}):
+  print(' ',pageParser.find('div','portal_summary').getText())
+  
+  for record in pageParser.find('table','portal_autopagetablecontainer_headerbackground').findAll('tr', {'id': not None}):
     # First two coloumns were empty
     record_line=[td.getText().strip() for td in record.findAll('td', {'id': not None})[2:]]
     # Related keys are assigned to all of the fields
     dataRecord=dict(zip(CSV_FILE_HEADER, record_line)) 
     writeRow(dataRecord)
 
+  SLEEP_SECONDS=randint(  3 * 60 ,5 * 60)
+  print("[=] On Pause for ",SLEEP_SECONDS,"seconds or",round(SLEEP_SECONDS/60.0,2),"minutes")
+  sleep(SLEEP_SECONDS)
 """
 browser.close()
 """
