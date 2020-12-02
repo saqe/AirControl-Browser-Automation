@@ -1,4 +1,4 @@
 selenium
-beautifullsoup4
+beautifulsoup4
 python-dotenv
 pandas
