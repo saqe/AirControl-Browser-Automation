@@ -16,17 +16,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 CSV_FILE_NAME=str(datetime.today())[:13]+'.csv'
-CSV_FILE_HEADER=['TOT/TA','STA','ARCID','ATYP','RM','ADEP','ADES','D','T','ARF','IOBT','LV','U','E/CTOT','X','F','S','CL','A/TTOT','AT','TOBT','TSAT','TT','Delay','R','Opp','W','MSG','REGUL+','O','','Impacted']
+CSV_FILE_HEADER=['Search','TOT/TA','STA','ARCID','ATYP','RM','ADEP','ADES','D','T','ARF','IOBT','LV','U','E/CTOT','X','F','S','CL','A/TTOT','AT','TOBT','TSAT','TT','Delay','R','Opp','W','MSG','REGUL+','O','','Impacted']
+
+delimiter=os.getenv('DELIMITER')
 
 def init(overwrite=False):
   if not os.path.exists(CSV_FILE_NAME) or overwrite:
     with open(CSV_FILE_NAME,'w',newline='',encoding='utf-8-sig') as csvfile:
-      filewriter = csv.DictWriter(csvfile, fieldnames=CSV_FILE_HEADER)
+      filewriter = csv.DictWriter(csvfile, delimiter=delimiter, fieldnames=CSV_FILE_HEADER)
       filewriter.writeheader()
 
 def writeRow(rowDict,removeExtra=False):
   with open(CSV_FILE_NAME,'a',newline='',encoding='utf-8-sig') as csvfile:
-    filewriter = csv.DictWriter(csvfile, fieldnames=CSV_FILE_HEADER)
+    filewriter = csv.DictWriter(csvfile, delimiter=delimiter, fieldnames=CSV_FILE_HEADER)
+    
     if removeExtra:
       extra_header=set(rowDict.keys())-set(CSV_FILE_HEADER)
       if extra_header != set(): print(extra_header)
@@ -54,8 +57,8 @@ username.send_keys(os.getenv('USER'))
 print("[?] Please enter the passcode and click on Login")
 while True:
   if browser.current_url == os.getenv('STARTING_URL'):
-    print("[*] Waiting for user to Login.")
-    sleep(1*30)
+    print("[*] Waiting 30 seconds for user to Login.")
+    sleep(30)
     continue
   else:break
   
@@ -66,19 +69,17 @@ print("[-] Navigating to Dashboard")
 browser.get(os.getenv('DASHBOARD_LINK'))
 
 # Wait for pageload
-WebDriverWait(browser, 10)\
+WebDriverWait(browser, 1000)\
   .until(EC.presence_of_element_located(\
     (By.ID, "TAC")))
-
 
 print("[-] Moving to Tacticals Tab")
 
 # Click on Tacticals
 browser.find_element_by_id('TAC').click()
 
-
 # Wait for Tacticals Tab to show up
-WebDriverWait(browser, 10)\
+WebDriverWait(browser, 50)\
   .until(EC.presence_of_element_located(\
     (By.ID, os.getenv('ID_FLIGHT_LIST'))))
 
@@ -129,26 +130,27 @@ for airdrome in airdromes:
   INPUT_AERODROME.clear()
   INPUT_AERODROME.send_keys(airdrome)
   SEARCH_BUTTON.click()
-
-
+  
+  sleep(4)
+  
   WebDriverWait(browser, 10)\
   .until(EC.presence_of_element_located(\
-    (By.ID, os.getenv('ID_TABLE_HEADER'))))
+    (By.ID, os.getenv('ID_FLIGHTLIST_TABLE'))))
   
   pageParser=BeautifulSoup(browser.page_source,'html.parser')
-  # TODO Add id for total flights here
-  print(' ',pageParser.find('div','portal_summary').getText())
-  
-  for record in pageParser.find('table','portal_autopagetablecontainer_headerbackground').findAll('tr', {'id': not None}):
+  records=pageParser.find('table',id=os.getenv('ID_FLIGHTLIST_TABLE')).findAll('tr', {'id': not None})
+  print(' ', len(records))
+  for record in records:
     # First two coloumns were empty
     record_line=[td.getText().strip() for td in record.findAll('td', {'id': not None})[2:]]
     # Related keys are assigned to all of the fields
-    dataRecord=dict(zip(CSV_FILE_HEADER, record_line)) 
+    dataRecord=dict(zip(CSV_FILE_HEADER, record_line))
+    dataRecord['Search']=airdrome
+
     writeRow(dataRecord)
 
-  SLEEP_SECONDS=randint(  3 * 60 ,5 * 60)
-  print("[=] On Pause for ",SLEEP_SECONDS,"seconds or",round(SLEEP_SECONDS/60.0,2),"minutes")
+  SLEEP_SECONDS=randint( 0 ,40)
+  print(f"[=] On Pause for {(SLEEP_SECONDS%3600)%60} seconds")
   sleep(SLEEP_SECONDS)
-"""
+
 browser.close()
-"""
